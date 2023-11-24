@@ -9,5 +9,5 @@ to get started, set the CLIENT_ID environment variable. You need to create a Git
 ```bash
 npm install
 npm run start
-``
 ```
+
