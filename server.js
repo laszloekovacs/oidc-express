@@ -1,6 +1,5 @@
 require('dotenv').config()
 const express = require('express')
-const session = require('express-session')
 const cookieParser = require('cookie-parser')
 const path = require('path')
 const jwt = require('jsonwebtoken')
@@ -27,13 +26,15 @@ app.get('/login', (req, res) => {
 app.get('/callback', async (req, res) => {
   console.log(req.query)
 
+  // build the query string for exchange for the access token
   const qs = new URLSearchParams({
     client_id: process.env.CLIENT_ID,
     client_secret: process.env.CLIENT_SECRET,
     code: req.query.code,
   })
 
-  const response = await fetch(
+  // get the access token
+  const accessTokenResponse = await fetch(
     'https://github.com/login/oauth/access_token' + '?' + qs.toString(),
     {
       method: 'POST',
@@ -42,35 +43,36 @@ app.get('/callback', async (req, res) => {
       },
     }
   )
+  const accesstoken = await accessTokenResponse.json()
 
-  // get the access token
-  const data = await response.json()
-
-  // set the cookie with the access token
-  res.cookie('Bearer', data.access_token, {
-    httpOnly: false,
-    secure: false,
-    sameSite: 'strict',
-  })
-
-  res.redirect('/')
-})
-
-app.get('/profile', async (req, res) => {
-  if (!req.cookies.Bearer) {
-    res.redirect('/login')
-    return
-  }
-
-  const response = await fetch('https://api.github.com/user', {
+  // using access token, get the user profile
+  const profileRes = await fetch('https://api.github.com/user', {
     headers: {
-      Authorization: `Bearer ${req.cookies.Bearer}`,
+      Authorization: `Bearer ${accesstoken.access_token}`,
     },
   })
 
-  const data = await response.json()
+  const profile = await profileRes.json()
 
-  res.send(data)
+  // build custom jwt token for out app
+  const token = jwt.sign(
+    {
+      login: profile.login,
+    },
+    process.env.SECRET
+  )
+
+  // decode token
+  const decoded = jwt.decode(token, { json: true })
+  console.log(decoded)
+
+  // verify token
+  const verified = jwt.verify(token, process.env.SECRET)
+
+  // set cookie
+  res.cookie('token', token)
+
+  res.redirect('/')
 })
 
 app.listen(port, () => {
