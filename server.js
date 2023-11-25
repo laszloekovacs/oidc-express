@@ -17,33 +17,42 @@ app.get('/login', (req, res) => {
   const qs = new URLSearchParams({
     client_id: process.env.CLIENT_ID,
     redirect_uri: 'http://localhost:3000/callback',
-    scope: 'openid profile email',
+    scope: 'openid user email',
+    response_type: 'code',
   })
 
-  res.redirect('https://github.com/login/oauth/authorize' + '?' + qs.toString())
+  res.redirect(process.env.ENDPOINT + '/authorize' + '?' + qs.toString())
 })
 
 app.get('/callback', async (req, res) => {
-  console.log(req.query)
+  console.log('req.query', req.query)
 
   // build the query string for exchange for the access token
   const qs = new URLSearchParams({
     client_id: process.env.CLIENT_ID,
     client_secret: process.env.CLIENT_SECRET,
     code: req.query.code,
+    grant_type: 'authorization_code',
+    redirect_uri: 'http://localhost:3000/callback',
   })
 
   // get the access token
   const accessTokenResponse = await fetch(
-    'https://github.com/login/oauth/access_token' + '?' + qs.toString(),
+    process.env.ENDPOINT + '/oauth/token' + '?' + qs.toString(),
     {
       method: 'POST',
       headers: {
-        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
     }
   )
+  if (!accessTokenResponse.ok) {
+    console.log(accessTokenResponse.status)
+  }
+
   const accesstoken = await accessTokenResponse.json()
+
+  console.log(accesstoken)
 
   // using access token, get the user profile
   const profileRes = await fetch('https://api.github.com/user', {
@@ -64,7 +73,7 @@ app.get('/callback', async (req, res) => {
 
   // decode token
   const decoded = jwt.decode(token, { json: true })
-  console.log(decoded)
+  //console.log(decoded)
 
   // verify token
   const verified = jwt.verify(token, process.env.SECRET)
